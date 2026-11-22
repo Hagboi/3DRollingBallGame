@@ -11,8 +11,7 @@ from `file://`, serve the folder instead (e.g. `python3 -m http.server`).
 
 | | Desktop | Mobile |
 |---|---|---|
-| Roll | WASD / arrow keys (gamepad stick works too) | hold anywhere to roll, drag left/right to steer, pull down to brake |
-| Jump | Space (gamepad A) | swipe up (or tap with a second finger) |
+| Roll | WASD / arrow keys (gamepad stick works too) | swipe the way you want to roll (up = forward, down = back, left/right); keep your finger down to keep rolling, let go to stop |
 | Pause | Esc / P | II button |
 | Restart | R | pause menu |
 
@@ -24,7 +23,9 @@ starts a level directly, `?unlock` unlocks all levels.
 
 - **120 levels** from a seeded generator (the same level number always builds the
   same course). 12 themed worlds; every 10th level is a hand-authored boss course.
-- **16 obstacle types**, two new ones per world: gaps, bounce pads, moving platforms
+- **No jump button:** gaps are crossed with green launch pads that fire the ball
+  across at a controlled speed, so every gap is provably crossable.
+- **16 obstacle types**, two new ones per world: gaps with launch pads, bounce pads, moving platforms
   and lifts, speed boosts and jump ramps, ice, rotating sweepers, lava and spikes,
   crumbling tiles, spinning discs, narrow beams, pendulums, pistons, sticky mud,
   conveyor belts, wind zones and teleporters.
@@ -36,7 +37,7 @@ starts a level directly, `?unlock` unlocks all levels.
 
 1. Constants & utilities
 2. Themes, obstacle schedule, boss definitions
-3. Level generator + `validateLevel` (checks every gap against the jump physics)
+3. Level generator + `validateLevel` (checks every gap against the launch/bounce physics)
 4. Save system
 5. Audio
 6. Renderer, shared geometry/materials

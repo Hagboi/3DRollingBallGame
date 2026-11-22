@@ -131,7 +131,7 @@ h1.logo{font-size:clamp(48px,11vw,96px);margin:0;font-weight:900;letter-spacing:
 <div id="touch" class="hidden">
   <div id="touchZone"></div>
   <div id="touchDot"></div>
-  <div id="touchHint">👆 Hold to roll · drag left/right to steer<br>Swipe up to jump · pull down to brake</div>
+  <div id="touchHint">👆 Swipe the way you want to roll<br>Keep your finger down to keep rolling · let go to stop</div>
 </div>
 
 <div class="wallet hidden" id="wallet"><div class="pill"><span class="gi"></span><span id="walletN">0</span></div></div>
@@ -139,7 +139,7 @@ h1.logo{font-size:clamp(48px,11vw,96px);margin:0;font-weight:900;letter-spacing:
 <!-- Main menu -->
 <div id="menu" class="screen dim">
   <h1 class="logo">ROLLWAY</h1>
-  <div class="sub">Roll, jump &amp; dodge across 120 sky-high obstacle courses</div>
+  <div class="sub">Roll, launch &amp; dodge across 120 sky-high obstacle courses</div>
   <div class="col">
     <button class="btn" id="btnPlay">▶ PLAY</button>
     <button class="btn blue" id="btnLevels">LEVELS</button>
@@ -149,7 +149,7 @@ h1.logo{font-size:clamp(48px,11vw,96px);margin:0;font-weight:900;letter-spacing:
       <button class="btn ghost small" id="btnQuality">Quality: High</button>
     </div>
   </div>
-  <div class="help" id="helpText">WASD / Arrows to roll · Space to jump · Esc to pause</div>
+  <div class="help" id="helpText">WASD / Arrows to roll · Esc to pause</div>
 </div>
 
 <!-- Level select -->
@@ -227,7 +227,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
    ===================================================================== */
 const STEP = 1 / 60;          // fixed physics step
 const G = 20;                 // gravity
-const JUMP_V = 8.4;           // jump launch speed  -> apex ~1.76u
+const LAUNCH_V = 8.4;         // launch pad vertical speed -> apex ~1.76u
 const BALL_R = 0.5;
 const BOUNCE_V = 13.5;        // bounce pad vertical speed
 const BOUNCE_FMIN = 7, BOUNCE_FMAX = 9.5; // bounce pad forward speed clamp
@@ -245,7 +245,7 @@ const diffOf = n => clamp((n - 1) / 99, 0, 1);
 const vmaxOf = n => 9.5 + 2 * diffOf(n);
 const vRefOf = n => 0.8 * vmaxOf(n);        // assumed take-off speed for gap design
 function flightTime(vy, dy) { const d = vy * vy - 2 * G * dy; return d < 0 ? -1 : (vy + Math.sqrt(d)) / G; }
-function feasibleGap(v, dy) { const t = flightTime(JUMP_V, dy); return t < 0 ? 0 : v * t; }
+function feasibleGap(v, dy) { const t = flightTime(LAUNCH_V, dy); return t < 0 ? 0 : v * t; }
 function lerpAngle(a, b, t) { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return a + d * t; }
 function fmtTime(t) { if (t == null || !isFinite(t)) return '-'; const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1); }
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -271,19 +271,19 @@ const THEMES = [
 
 // One new obstacle roughly every 5 levels (two per world) so all 16 hazards appear before world 9.
 const OBST = [
-  { id: 'gap', intro: 3, name: 'Gaps', tip: 'Press SPACE / JUMP to leap across gaps.' },
+  { id: 'gap', intro: 3, name: 'Gaps & Launch Pads', tip: 'Roll over the green launch pads to fly across gaps.' },
   { id: 'bounce', intro: 6, name: 'Bounce Pads', tip: 'Roll over pink pads to launch high into the air.' },
   { id: 'mover', intro: 11, name: 'Moving Platforms', tip: 'Ride the moving platforms – time your step.' },
-  { id: 'boost', intro: 16, name: 'Speed Boosts & Jump Ramps', tip: 'Orange arrows fling you forward. Hold on tight!' },
+  { id: 'boost', intro: 16, name: 'Speed Boosts', tip: 'Orange arrows fling you forward. Hold on tight!' },
   { id: 'ice', intro: 21, name: 'Ice', tip: 'Ice is slippery – steer early and gently.' },
-  { id: 'sweeper', intro: 26, name: 'Rotating Sweepers', tip: 'Jump over the spinning beams or slip past them.' },
+  { id: 'sweeper', intro: 26, name: 'Rotating Sweepers', tip: 'Time your dash past the beams – or play it safe around the edge.' },
   { id: 'lava', intro: 31, name: 'Lava & Spikes', tip: 'Lava and raised spikes send you back to the checkpoint.' },
   { id: 'crumble', intro: 36, name: 'Crumbling Tiles', tip: 'Cracked tiles fall shortly after you touch them. Keep rolling!' },
   { id: 'disc', intro: 41, name: 'Spinning Discs', tip: 'Spinning discs drag you sideways – steer against the spin.' },
   { id: 'beam', intro: 46, name: 'Narrow Beams', tip: 'Line up carefully and keep it straight on narrow beams.' },
   { id: 'pendulum', intro: 51, name: 'Pendulums', tip: 'Wait for the swinging hammers to pass.' },
   { id: 'piston', intro: 56, name: 'Pistons', tip: 'Pistons shove you off the edge – time your run.' },
-  { id: 'mud', intro: 61, name: 'Sticky Mud', tip: 'Mud slows you down and weakens your jump.' },
+  { id: 'mud', intro: 61, name: 'Sticky Mud', tip: 'Mud slows you right down – keep pushing.' },
   { id: 'conveyor', intro: 66, name: 'Conveyor Belts', tip: 'Belts push you around – fight the flow.' },
   { id: 'wind', intro: 71, name: 'Wind Zones', tip: 'Gusts push you sideways. Watch the fans and lean in.' },
   { id: 'teleport', intro: 76, name: 'Teleporters', tip: 'Roll into a portal to warp ahead.' },
@@ -398,34 +398,39 @@ P.turn = (b, o = {}) => {
   b.advance(w / 2); b.c.h += dir * Math.PI / 2; b.hIdx += dir; b.advance(w / 2);
   b.run = w / 2; b.par += w / REF_SPEED + 0.3;
 };
-P.gap = (b, o = {}) => {
-  if (b.run < 4) P.straight(b, { len: Math.max(2.5, 4.5 - b.run), rails: false, gems: false });
-  const dy = o.dy ?? (b.rng() < 0.5 ? 0 : b.rand(-1.5, 0.8));
-  const maxG = 0.65 * feasibleGap(vRefOf(b.n), dy);
-  const gap = Math.min(o.gap ?? b.rand(1.8, lerp(2.8, maxG, b.d)), maxG);
-  b.edgeMark(b.w);
+// There is no player jump: gaps are crossed with launch pads. Rolling onto one fires the ball
+// over the gap with its forward speed clamped to [fmin, fmax] (and held there in the air), so the
+// landing zone is predictable and every gap can be sized to be crossable.
+const LAUNCH_DEPTH = 1.2;
+function launchGap(b, o) { // call with the cursor at the edge of solid ground
+  const dy = o.dy ?? 0, fmin = o.fmin ?? 6, fmax = o.fmax ?? 7.5, t = flightTime(LAUNCH_V, dy);
+  const gap = Math.max(1.2, Math.min(o.gap, fmin * t - LAUNCH_DEPTH - 0.5));
+  const land = Math.max(o.land ?? 5, fmax * t - gap + 1.2);
+  const pw = b.w;
+  b.decals.push({ kind: 'launch', p: b.W(0, 0.016, -LAUNCH_DEPTH / 2), yaw: -b.c.h, w: pw - 0.1, l: LAUNCH_DEPTH });
+  b.trig('launch', 0, 0.6, -LAUNCH_DEPTH / 2, pw / 2, 0.7, LAUNCH_DEPTH / 2, { f: b.fwd(), fmin, fmax });
   if (b.rng() < 0.5) b.gem(0, 1.7 + Math.max(0, dy), gap / 2);
-  b.gaps.push({ kind: 'jump', gap, dy, run: b.run });
+  b.gaps.push({ kind: 'launch', gap, dy, t, fmin, fmax, land });
   b.advance(gap, dy); b.run = 0; b.par += 0.3;
-  // early levels: landing long enough that a full-speed jump can't overshoot it
-  const overshoot = (vmaxOf(b.n) * flightTime(JUMP_V, dy) - gap + 1.5) * (1 - 0.7 * b.d);
-  P.straight(b, { len: Math.max(o.land ?? b.rand(5, 8), overshoot), rails: false, gems: false });
+  return land;
+}
+P.gap = (b, o = {}) => {
+  if (b.run < 3) P.straight(b, { len: Math.max(2.5, 4 - b.run), rails: false, gems: false });
+  const dy = o.dy ?? (b.rng() < 0.5 ? 0 : b.rand(-1.5, 0.8));
+  const land = launchGap(b, { dy, gap: o.gap ?? b.rand(1.8, lerp(2.6, 3.6, b.d)), land: o.land ?? b.rand(5, 8) });
+  P.straight(b, { len: land, rails: false, gems: false });
 };
 P.islands = (b, o = {}) => {
-  if (b.run < 4) P.straight(b, { len: 4, rails: false, gems: false });
+  if (b.run < 3) P.straight(b, { len: 3, rails: false, gems: false });
   const count = o.count ?? b.ri(2, 4), size = o.size ?? lerp(4.2, 3.2, b.d);
-  const maxG = 0.45 * feasibleGap(vRefOf(b.n), 0);
+  let land = launchGap(b, { gap: o.gap ?? b.rand(1.5, lerp(2.2, 3.2, b.d)), land: size });
   for (let i = 0; i < count; i++) {
-    const g = Math.min(o.gap ?? b.rand(1.5, lerp(2.2, 3.2, b.d)), maxG);
-    b.gaps.push({ kind: 'jump', gap: g, dy: 0, run: b.run });
-    b.advance(g); b.run = 0;
-    b.slab(0, size, Math.max(size, 3.2));
-    if (b.rng() < 0.4) b.gem(0, 0.8, size / 2);
-    b.advance(size); b.run = size; b.par += (g + size) / REF_SPEED + 0.25;
+    b.slab(0, land, Math.max(size, 3.2));
+    if (b.rng() < 0.4) b.gem(0, 0.8, land / 2);
+    b.advance(land); b.run = land; b.par += land / REF_SPEED + 0.25;
+    land = launchGap(b, { gap: i === count - 1 ? b.rand(1.5, 2.4) : (o.gap ?? b.rand(1.5, lerp(2.2, 3.2, b.d))), land: i === count - 1 ? 5 : size });
   }
-  const g = Math.min(b.rand(1.5, 2.4), maxG);
-  b.gaps.push({ kind: 'jump', gap: g, dy: 0, run: b.run }); b.advance(g); b.run = 0;
-  P.straight(b, { len: 5, rails: false, gems: false });
+  P.straight(b, { len: land, rails: false, gems: false });
 };
 P.bounce = (b, o = {}) => {
   if (b.run < 3) P.straight(b, { len: 3, rails: false, gems: false });
@@ -480,14 +485,10 @@ P.boost = (b, o = {}) => {
     P.straight(b, { len: b.rand(10, 16), rails: true });
     if (b.rng() < 0.6) P.slope(b, { dy: -b.rand(1.5, 3) });
   } else {
-    P.slope(b, { len: 3.5, dy: 1.0, gems: false });
-    const dyRel = -b.rand(0.8, 2.2);
-    const gap = Math.min(b.rand(4.5, 6.5), 0.68 * feasibleGap(vRefOf(b.n), dyRel));
-    b.edgeMark(w);
-    b.gem(0, 2.4, gap * 0.5);
-    b.gaps.push({ kind: 'jump', gap, dy: dyRel, run: b.run });
-    b.advance(gap, dyRel); b.run = 0;
-    P.straight(b, { len: b.rand(8, 11), rails: false, gems: false });
+    // boosted long jump: the launch pad keeps more of the boost speed
+    P.straight(b, { len: 3, rails: false, gems: false });
+    const land = launchGap(b, { dy: -b.rand(0.8, 2.2), gap: b.rand(5, 7), fmin: 9, fmax: 12, land: b.rand(8, 11) });
+    P.straight(b, { len: land, rails: false, gems: false });
   }
   b.par -= 1.0;
 };
@@ -499,14 +500,16 @@ P.ice = (b, o = {}) => {
   b.par += 1;
 };
 P.sweeper = (b, o = {}) => {
-  const R = o.R ?? Math.max(b.w / 2 + 2.5, 4.8), w2 = 2 * R;
+  // beam reach Rb; the square base is wider, leaving a safe ring around the edge, so cutting straight
+  // through is an optional, timed shortcut
+  const Rb = o.R ?? Math.max(b.w / 2 + 1.5, 3.8), H = Rb + 1.9, w2 = 2 * H;
   b.slab(0, w2, w2);
-  b.box(0, 0.8, R, 0.9, 1.6, 0.9, { shape: 'cyl', top: '#888888', side: '#666666' });
+  b.box(0, 0.8, H, 0.9, 1.6, 0.9, { shape: 'cyl', top: '#888888', side: '#666666' });
   const beams = o.beams ?? (b.d > 0.5 && b.rng() < 0.5 ? 2 : 1);
-  const om = (o.speed ?? lerp(1.0, 2.0, b.d)) * (b.rng() < 0.5 ? -1 : 1);
-  const C = b.W(0, 0.3, R), base = -b.c.h + b.rng() * TAU;
-  for (let k = 0; k < beams; k++) b.kins.push({ kind: 'beam', shape: 'box', size: [w2 * 0.92, 0.5, 0.5], fn: (t, out) => { out.p.set(C[0], C[1], C[2]); out.yaw = base + om * t + k * Math.PI / 2; } });
-  b.gem(R * 0.8, 0.8, 0.6); b.gem(-R * 0.8, 0.8, w2 - 0.6);
+  const om = (o.speed ?? lerp(0.9, 1.7, b.d)) * (b.rng() < 0.5 ? -1 : 1);
+  const C = b.W(0, 0.3, H), base = -b.c.h + b.rng() * TAU;
+  for (let k = 0; k < beams; k++) b.kins.push({ kind: 'beam', shape: 'box', size: [2 * Rb, 0.5, 0.5], fn: (t, out) => { out.p.set(C[0], C[1], C[2]); out.yaw = base + om * t + k * Math.PI / 2; } });
+  b.gem(H - 0.8, 0.8, 0.8); b.gem(-(H - 0.8), 0.8, w2 - 0.8);
   b.advance(w2); b.run = w2; b.par += w2 / REF_SPEED + 1.5;
 };
 P.lava = (b, o = {}) => {
@@ -733,16 +736,18 @@ function generateLevel(n) {
   };
 }
 
-// Checks every gap against the ball's jump physics. Returns a list of problems (empty = completable).
+// Checks every gap against the launch/bounce physics. Returns a list of problems (empty = completable).
 function validateLevel(spec) {
   const issues = [], vref = vRefOf(spec.n), vmax = vmaxOf(spec.n);
   for (const g of spec.gaps) {
-    if (g.kind === 'jump') {
-      if (g.dy > 1.3) issues.push(`jump up too high (dy=${g.dy.toFixed(2)})`);
-      const v = g.run >= 4 ? vref : vref * 0.75;
-      const feas = feasibleGap(v, g.dy);
-      if (g.gap > 0.72 * feas) issues.push(`gap ${g.gap.toFixed(2)} > safe ${(0.72 * feas).toFixed(2)} (run ${g.run.toFixed(1)}, dy ${g.dy.toFixed(2)})`);
-    } else if (g.kind === 'bounce') {
+    if (g.kind === 'launch') {
+      // launched from anywhere on the pad at a forward speed in [fmin, fmax]
+      if (g.t <= 0) issues.push('launch gap too high');
+      else {
+        if (g.fmin * g.t < g.gap + LAUNCH_DEPTH + 0.4) issues.push(`launch gap ${g.gap.toFixed(2)} unreachable`);
+        if (g.fmax * g.t > g.gap + g.land - 1.0) issues.push(`launch landing ${g.land.toFixed(1)} too short`);
+      }
+    } else if (g.kind === 'jump') issues.push('player jump required'); else if (g.kind === 'bounce') {
       const t = flightTime(BOUNCE_V, g.dy);
       if (t < 0) issues.push('bounce too high');
       else {
@@ -970,8 +975,10 @@ function chevronTex(bg, fg) {
   });
 }
 const boostTex = chevronTex('#ff6d00', '#ffe082'); boostTex.wrapS = boostTex.wrapT = THREE.RepeatWrapping;
+const launchTex = chevronTex('#00c853', '#ccff90'); launchTex.wrapS = launchTex.wrapT = THREE.RepeatWrapping;
 const convTex = chevronTex('#37474f', '#90a4ae'); convTex.wrapS = convTex.wrapT = THREE.RepeatWrapping;
 const boostMat = new THREE.MeshBasicMaterial({ map: boostTex });
+const launchMat = new THREE.MeshBasicMaterial({ map: launchTex });
 const convMat = new THREE.MeshStandardMaterial({ map: convTex, roughness: 0.8 });
 const hazardTex = canvasTex(128, 32, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.fillStyle = '#e53935'; for (let x = -32; x < w; x += 32) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + 16, 0); g.lineTo(x + 32, 0); g.lineTo(x + 16, h); g.fill(); } }, [6, 1]);
 const pistonTex = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#ffc400'; g.fillRect(0, 0, w, h); g.fillStyle = '#212121'; for (let x = -128; x < w; x += 32) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + h, 0); g.lineTo(x + h + 16, 0); g.lineTo(x + 16, h); g.fill(); } });
@@ -1172,7 +1179,7 @@ function buildLevel(spec) {
     } else {
       const geo = new THREE.PlaneGeometry(d.w, d.l).rotateX(-Math.PI / 2);
       const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.max(1, Math.round(d.w / 1.5)), uv.getY(i) * d.l / 1.5);
-      const m = new THREE.Mesh(geo, d.kind === 'boost' ? boostMat : convMat); m.position.set(...d.p); m.rotation.y = d.yaw; m.receiveShadow = true;
+      const m = new THREE.Mesh(geo, d.kind === 'boost' ? boostMat : d.kind === 'launch' ? launchMat : convMat); m.position.set(...d.p); m.rotation.y = d.yaw; m.receiveShadow = true;
       Lv.group.add(m); Lv.disposables.push(geo);
     }
   }
@@ -1332,25 +1339,23 @@ function applyTheme(spec) {
    SECTION 11: INPUT (keyboard, touch joystick, gamepad)
    ===================================================================== */
 const Input = {
-  keys: new Set(), joy: { x: 0, y: 0 }, jumpBuf: 0,
+  keys: new Set(), joy: { x: 0, y: 0 },
   axis() {
     let x = 0, y = 0; const k = this.keys;
     if (k.has('KeyA') || k.has('ArrowLeft')) x -= 1; if (k.has('KeyD') || k.has('ArrowRight')) x += 1;
     if (k.has('KeyW') || k.has('ArrowUp')) y += 1; if (k.has('KeyS') || k.has('ArrowDown')) y -= 1;
     x += this.joy.x; y += this.joy.y;
     const gps = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const gp of gps) if (gp) { const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; if (Math.hypot(ax, ay) > 0.2) { x += ax; y -= ay; } if (gp.buttons[0]?.pressed) { if (!this._gpj) this.jump(); this._gpj = true; } else this._gpj = false; }
+    for (const gp of gps) if (gp) { const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; if (Math.hypot(ax, ay) > 0.2) { x += ax; y -= ay; } }
     const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
     return { x, y };
   },
-  jump() { this.jumpBuf = 0.15; },
 };
 addEventListener('keydown', (e) => {
   Sfx.init();
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   if (e.repeat) { Input.keys.add(e.code); return; }
   Input.keys.add(e.code);
-  if (e.code === 'Space') Input.jump();
   if (e.code === 'Escape' || e.code === 'KeyP') { if (game.state === 'playing') pauseGame(); else if (game.state === 'paused') resumeGame(); }
   if (e.code === 'KeyR' && game.state === 'playing') restartLevel();
   if (e.code === 'Enter' && game.state === 'complete') nextLevel();
@@ -1363,42 +1368,41 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => Input.keys.delete(e.code));
 addEventListener('blur', () => Input.keys.clear());
 addEventListener('pointerdown', () => Sfx.init(), { capture: true });
-// Swipe controls: hold anywhere to roll forward, drag sideways to steer,
-// flick up to jump, drag down to brake/reverse, release to slow down.
-// A second finger tapping the screen also jumps.
+// Swipe controls: the ball rolls in the direction you swipe (up = forward, down = back,
+// left/right = sideways, diagonals work too). Swipe length sets speed; keep your finger down to keep
+// rolling, lift it to slow to a stop. The swipe origin trails behind the finger, so changing
+// direction responds immediately. A quick flick keeps pushing briefly after you let go.
 (function setupTouch() {
   const zone = document.getElementById('touchZone'), dot = document.getElementById('touchDot'), hint = document.getElementById('touchHint');
-  const STEER = 70, BRAKE = 45, FLICK_DIST = 35, FLICK_MS = 250;
-  let id = null, ax = 0, ay = 0, hist = [], lastFlick = -1e9;
-  const reset = () => { id = null; Input.joy.x = Input.joy.y = 0; dot.classList.remove('on'); };
+  const RANGE = 60, DEAD = 6, FLICK_KEEP = 350;
+  let id = null, ax = 0, ay = 0, t0 = 0, sx = 0, sy = 0, releaseTimer = null;
+  const set = (dx, dy) => { const l = Math.hypot(dx, dy); if (l < DEAD) { Input.joy.x = Input.joy.y = 0; return; } const k = Math.min(1, l / RANGE) / l; Input.joy.x = dx * k; Input.joy.y = -dy * k; };
+  const stop = () => { Input.joy.x = Input.joy.y = 0; };
   zone.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    hint.classList.add('gone');
-    if (id !== null) { Input.jump(); return; } // second finger = jump
+    e.preventDefault(); hint.classList.add('gone');
+    if (id !== null) return;
+    clearTimeout(releaseTimer);
     id = e.pointerId; zone.setPointerCapture(id);
-    ax = e.clientX; ay = e.clientY; hist = [{ y: e.clientY, t: e.timeStamp }];
-    Input.joy.x = 0; Input.joy.y = 1;
+    ax = sx = e.clientX; ay = sy = e.clientY; t0 = e.timeStamp; stop();
     dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px'; dot.classList.add('on');
   });
   zone.addEventListener('pointermove', (e) => {
     if (e.pointerId !== id) return;
-    const x = e.clientX, y = e.clientY, t = e.timeStamp;
+    const x = e.clientX, y = e.clientY;
+    let dx = x - ax, dy = y - ay; const l = Math.hypot(dx, dy);
+    if (l > RANGE) { ax = x - dx * RANGE / l; ay = y - dy * RANGE / l; dx = x - ax; dy = y - ay; }
+    set(dx, dy);
     dot.style.left = x + 'px'; dot.style.top = y + 'px';
-    // flick up -> jump
-    hist.push({ y, t }); while (hist.length > 2 && t - hist[0].t > FLICK_MS) hist.shift();
-    if (hist[0].y - y > FLICK_DIST && t - lastFlick > 300) { Input.jump(); lastFlick = t; hist = [{ y, t }]; ay = y; }
-    // steering: horizontal offset from an anchor that trails the finger
-    let dx = x - ax;
-    if (Math.abs(dx) > STEER) { ax = x - Math.sign(dx) * STEER; dx = x - ax; }
-    Input.joy.x = dx / STEER;
-    // vertical: anchor follows the finger upward; pulling down past BRAKE reverses
-    if (y < ay) ay = y;
-    if (y - ay > BRAKE + STEER) ay = y - BRAKE - STEER;
-    Input.joy.y = y - ay > BRAKE ? -1 : 1;
   });
-  zone.addEventListener('pointerup', (e) => { if (e.pointerId === id) reset(); });
-  zone.addEventListener('pointercancel', (e) => { if (e.pointerId === id) reset(); });
-  window.showTouchHint = () => { if (isTouch && (Save.data.hints || 0) < 3) { Save.data.hints = (Save.data.hints || 0) + 1; Save.write(); hint.classList.remove('gone'); setTimeout(() => hint.classList.add('gone'), 6000); } else hint.classList.add('gone'); };
+  const end = (e) => {
+    if (e.pointerId !== id) return;
+    id = null; dot.classList.remove('on');
+    const quick = e.timeStamp - t0 < 300 && Math.hypot(e.clientX - sx, e.clientY - sy) > 25;
+    if (quick) { set(e.clientX - sx, e.clientY - sy); releaseTimer = setTimeout(stop, FLICK_KEEP); } else stop();
+  };
+  zone.addEventListener('pointerup', end);
+  zone.addEventListener('pointercancel', (e) => { if (e.pointerId === id) { id = null; dot.classList.remove('on'); stop(); } });
+  window.showTouchHint = () => { if (isTouch && (Save.data.hints2 || 0) < 3) { Save.data.hints2 = (Save.data.hints2 || 0) + 1; Save.write(); hint.classList.remove('gone'); setTimeout(() => hint.classList.add('gone'), 6000); } else hint.classList.add('gone'); };
 })();
 
 /* =====================================================================
@@ -1430,7 +1434,7 @@ function controlStep() {
   const n = L.spec.n, v = ball.velocity;
   const playing = game.state === 'playing' && !game.finished;
   const ax = playing ? Input.axis() : { x: 0, y: 0 };
-  if (playing && !game.timerStarted && (Math.abs(ax.x) + Math.abs(ax.y) > 0.1 || Input.jumpBuf > 0)) game.timerStarted = true;
+  if (playing && !game.timerStarted && Math.abs(ax.x) + Math.abs(ax.y) > 0.1) game.timerStarted = true;
   const yaw = cam.yaw, fx = Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = Math.sin(yaw);
   const dx = fx * ax.y + rx * ax.x, dz = fz * ax.y + rz * ax.x, mag = Math.hypot(dx, dz);
   const grounded = phys.time - phys.lastGround < 0.1;
@@ -1457,14 +1461,10 @@ function controlStep() {
   v.x += bx; v.z += bz;
   if (onKin) { const pv = gb.userData.prevVel; v.x += gb.velocity.x - pv.x; v.y += Math.min(0, gb.velocity.y - pv.y); v.z += gb.velocity.z - pv.z; }
   if (game.finished) { const k = 1 - 3 * STEP; v.x *= k; v.z *= k; }
-  // jump (buffered + coyote time)
-  if (Input.jumpBuf > 0) Input.jumpBuf -= STEP;
-  if (playing && Input.jumpBuf > 0 && grounded && phys.time - phys.lastJump > 0.25) {
-    const base = gb && gb.type === CANNON.Body.KINEMATIC ? Math.max(0, gb.velocity.y) : 0;
-    v.y = JUMP_V * (surf === 'mud' ? 0.72 : 1) + base;
-    phys.lastJump = phys.time; phys.lastGround = -10; Input.jumpBuf = 0;
-    Sfx.play('jump');
-    Particles.emit(new THREE.Vector3(ball.position.x, ball.position.y - 0.45, ball.position.z), 8, { color: L.spec.theme.top, speed: 2.5, up: 0.3, life: 0.45, size: 0.22, gravity: 4 });
+  // after a launch pad, hold the forward speed inside the pad's range until landing so the arc is predictable
+  if (phys.airCap) {
+    if (grounded && phys.time - phys.launchT > 0.15) phys.airCap = null;
+    else { const c = phys.airCap, a = v.x * c.f[0] + v.z * c.f[2], cl = clamp(a, c.min, c.max); v.x += (cl - a) * c.f[0]; v.z += (cl - a) * c.f[2]; }
   }
 }
 
@@ -1524,6 +1524,17 @@ function checkTriggers() {
         if (along < BOOST_V) { const lx = v.x - along * d.f[0], lz = v.z - along * d.f[2]; v.x = d.f[0] * BOOST_V + lx * 0.4; v.z = d.f[2] * BOOST_V + lz * 0.4; }
         if (t - phys.boostCD > 0.6) { Sfx.play('boost'); Particles.emit(new THREE.Vector3(p.x, p.y - 0.3, p.z), 14, { color: ['#ff9100', '#ffe082'], speed: 4, up: 0.4, life: 0.5, size: 0.25 }); }
         phys.boostCD = t; break;
+      }
+      case 'launch': {
+        const along = v.x * d.f[0] + v.z * d.f[2];
+        if (!grounded || along < 0.3 || t - phys.bounceCD < 0.4) break;
+        phys.bounceCD = t;
+        const a2 = clamp(along, d.fmin, d.fmax), lx = (v.x - along * d.f[0]) * 0.6, lz = (v.z - along * d.f[2]) * 0.6;
+        v.set(d.f[0] * a2 + lx, LAUNCH_V, d.f[2] * a2 + lz);
+        phys.airCap = { f: d.f, min: a2, max: a2 }; phys.launchT = t; phys.lastGround = -10;
+        Sfx.play('jump');
+        Particles.emit(new THREE.Vector3(p.x, p.y - 0.4, p.z), 14, { color: ['#00e676', '#ccff90', '#ffffff'], speed: 3.5, up: 0.4, life: 0.5, size: 0.25 });
+        break;
       }
       case 'bounce': {
         if (t - phys.bounceCD < 0.4 || v.y > 2) break;
@@ -1585,7 +1596,7 @@ function die(reason) {
 function respawn() {
   const sp = game.spawn || L.spec.spawn;
   ball.position.set(sp.p[0], sp.p[1], sp.p[2]); ball.velocity.set(0, 0, 0); ball.angularVelocity.set(0, 0, 0);
-  phys.prevPos.set(sp.p[0], sp.p[1], sp.p[2]); phys.lastGround = -10;
+  phys.prevPos.set(sp.p[0], sp.p[1], sp.p[2]); phys.lastGround = -10; phys.airCap = null;
   for (const t of L.tiles) resetTile(t);
   L.nearIdx = 0; nearestSample(ball.position);
   cam.yaw = sp.h; snapCamera();
@@ -1727,7 +1738,7 @@ function loadLevel(n) {
 }
 function resetRun() {
   game.time = 0; game.timerStarted = false; game.finished = false; game.cp = -1; game.spawn = null; game.falls = 0; game.gemsRun = 0; game.newGems = 0;
-  phys.time = 0; phys.lastJump = -10; phys.lastGround = -10; phys.bounceCD = -10; phys.boostCD = -10; Input.jumpBuf = 0;
+  phys.time = 0; phys.lastGround = -10; phys.bounceCD = -10; phys.boostCD = -10; phys.airCap = null;
   for (const g of L.gems) { g.got = false; g.mesh.visible = true; }
   for (const f of L.flags) f.mesh.material = flagIdle;
   respawn();
@@ -1813,7 +1824,7 @@ function frame(now) {
       else if (t.state === 'fall') { t.vy += 18 * dt; t.mesh.position.y -= t.vy * dt; if (t.mesh.position.y < t.spec.p[1] - 40) t.mesh.visible = false; }
     }
     lavaMat.emissiveIntensity = 1.0 + Math.sin(rt * 3) * 0.3;
-    boostTex.offset.y = -rt * 2.5; convTex.offset.y = -rt * (L.spec.conveyorSpeed || 3) / 1.5;
+    boostTex.offset.y = -rt * 2.5; launchTex.offset.y = -rt * 1.5; convTex.offset.y = -rt * (L.spec.conveyorSpeed || 3) / 1.5;
     const grounded = phys.time - phys.lastGround < 0.1;
     Sfx.updateRoll(game.state === 'playing' ? Math.hypot(ball.velocity.x, ball.velocity.z) : 0, grounded);
   }
@@ -1833,7 +1844,7 @@ function frame(now) {
    ===================================================================== */
 addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
-if (isTouch) $('helpText').textContent = 'Hold to roll · drag to steer · swipe up to jump';
+if (isTouch) $('helpText').textContent = 'Swipe the way you want to roll · let go to stop';
 applyQuality();
 loadLevel(clamp(Save.data.last || 1, 1, TOTAL_LEVELS)); resetRun();
 refreshSoundBtns();
