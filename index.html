@@ -59,13 +59,12 @@ h1.logo{font-size:clamp(48px,11vw,96px);margin:0;font-weight:900;letter-spacing:
 #fps{position:absolute;left:10px;bottom:10px;font:12px monospace;background:rgba(0,0,0,.5);padding:4px 8px;border-radius:6px}
 /* Touch */
 #touch{position:fixed;inset:0;z-index:9}
-#joyZone{position:absolute;left:0;bottom:0;width:55%;height:65%;pointer-events:auto;touch-action:none}
-#joyBase{position:absolute;width:130px;height:130px;margin:-65px 0 0 -65px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);left:90px;top:calc(100% - 110px);transition:opacity .2s;opacity:.55}
-#joyKnob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 4px 12px rgba(0,0,0,.4)}
-#jumpBtn{position:absolute;right:max(26px,env(safe-area-inset-right));bottom:max(36px,env(safe-area-inset-bottom));width:96px;height:96px;border-radius:50%;
-  background:radial-gradient(circle at 35% 30%,#ffe57f,#ffb300);box-shadow:0 6px 0 #b37400,0 10px 20px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;
-  font-weight:900;color:#3a2600;font-size:18px;pointer-events:auto;touch-action:none}
-#jumpBtn.down{transform:translateY(4px);box-shadow:0 2px 0 #b37400}
+#touchZone{position:absolute;inset:0;pointer-events:auto;touch-action:none}
+#touchDot{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);pointer-events:none;opacity:0;transition:opacity .15s}
+#touchDot.on{opacity:1}
+#touchHint{position:absolute;left:50%;bottom:max(28px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(340px,90vw);text-align:center;font-weight:800;font-size:15px;line-height:1.5;
+  background:rgba(10,12,30,.6);border-radius:16px;padding:10px 14px;pointer-events:none;transition:opacity .4s}
+#touchHint.gone{opacity:0}
 /* Level select */
 #levels .panel{width:min(640px,100%)}
 .lsHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
@@ -130,8 +129,9 @@ h1.logo{font-size:clamp(48px,11vw,96px);margin:0;font-weight:900;letter-spacing:
 
 <!-- Touch controls -->
 <div id="touch" class="hidden">
-  <div id="joyZone"><div id="joyBase"><div id="joyKnob"></div></div></div>
-  <div id="jumpBtn">JUMP</div>
+  <div id="touchZone"></div>
+  <div id="touchDot"></div>
+  <div id="touchHint">👆 Hold to roll · drag left/right to steer<br>Swipe up to jump · pull down to brake</div>
 </div>
 
 <div class="wallet hidden" id="wallet"><div class="pill"><span class="gi"></span><span id="walletN">0</span></div></div>
@@ -1363,16 +1363,42 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => Input.keys.delete(e.code));
 addEventListener('blur', () => Input.keys.clear());
 addEventListener('pointerdown', () => Sfx.init(), { capture: true });
+// Swipe controls: hold anywhere to roll forward, drag sideways to steer,
+// flick up to jump, drag down to brake/reverse, release to slow down.
+// A second finger tapping the screen also jumps.
 (function setupTouch() {
-  const zone = document.getElementById('joyZone'), base = document.getElementById('joyBase'), knob = document.getElementById('joyKnob'), jb = document.getElementById('jumpBtn');
-  let id = null, ox = 0, oy = 0; const R = 55;
-  const reset = () => { id = null; Input.joy.x = Input.joy.y = 0; knob.style.transform = ''; base.style.opacity = '.55'; base.style.left = '90px'; base.style.top = 'calc(100% - 110px)'; };
-  zone.addEventListener('pointerdown', (e) => { e.preventDefault(); id = e.pointerId; zone.setPointerCapture(id); const r = zone.getBoundingClientRect(); ox = e.clientX; oy = e.clientY; base.style.left = (e.clientX - r.left) + 'px'; base.style.top = (e.clientY - r.top) + 'px'; base.style.opacity = '1'; });
-  zone.addEventListener('pointermove', (e) => { if (e.pointerId !== id) return; let dx = e.clientX - ox, dy = e.clientY - oy; const l = Math.hypot(dx, dy); if (l > R) { dx *= R / l; dy *= R / l; } knob.style.transform = `translate(${dx}px,${dy}px)`; Input.joy.x = dx / R; Input.joy.y = -dy / R; });
+  const zone = document.getElementById('touchZone'), dot = document.getElementById('touchDot'), hint = document.getElementById('touchHint');
+  const STEER = 70, BRAKE = 45, FLICK_DIST = 35, FLICK_MS = 250;
+  let id = null, ax = 0, ay = 0, hist = [], lastFlick = -1e9;
+  const reset = () => { id = null; Input.joy.x = Input.joy.y = 0; dot.classList.remove('on'); };
+  zone.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    hint.classList.add('gone');
+    if (id !== null) { Input.jump(); return; } // second finger = jump
+    id = e.pointerId; zone.setPointerCapture(id);
+    ax = e.clientX; ay = e.clientY; hist = [{ y: e.clientY, t: e.timeStamp }];
+    Input.joy.x = 0; Input.joy.y = 1;
+    dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px'; dot.classList.add('on');
+  });
+  zone.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== id) return;
+    const x = e.clientX, y = e.clientY, t = e.timeStamp;
+    dot.style.left = x + 'px'; dot.style.top = y + 'px';
+    // flick up -> jump
+    hist.push({ y, t }); while (hist.length > 2 && t - hist[0].t > FLICK_MS) hist.shift();
+    if (hist[0].y - y > FLICK_DIST && t - lastFlick > 300) { Input.jump(); lastFlick = t; hist = [{ y, t }]; ay = y; }
+    // steering: horizontal offset from an anchor that trails the finger
+    let dx = x - ax;
+    if (Math.abs(dx) > STEER) { ax = x - Math.sign(dx) * STEER; dx = x - ax; }
+    Input.joy.x = dx / STEER;
+    // vertical: anchor follows the finger upward; pulling down past BRAKE reverses
+    if (y < ay) ay = y;
+    if (y - ay > BRAKE + STEER) ay = y - BRAKE - STEER;
+    Input.joy.y = y - ay > BRAKE ? -1 : 1;
+  });
   zone.addEventListener('pointerup', (e) => { if (e.pointerId === id) reset(); });
   zone.addEventListener('pointercancel', (e) => { if (e.pointerId === id) reset(); });
-  jb.addEventListener('pointerdown', (e) => { e.preventDefault(); Input.jump(); jb.classList.add('down'); });
-  const up = () => jb.classList.remove('down'); jb.addEventListener('pointerup', up); jb.addEventListener('pointercancel', up); jb.addEventListener('pointerleave', up);
+  window.showTouchHint = () => { if (isTouch && (Save.data.hints || 0) < 3) { Save.data.hints = (Save.data.hints || 0) + 1; Save.write(); hint.classList.remove('gone'); setTimeout(() => hint.classList.add('gone'), 6000); } else hint.classList.add('gone'); };
 })();
 
 /* =====================================================================
@@ -1626,7 +1652,7 @@ function updateCamera(dt) {
    ===================================================================== */
 const $ = (id) => document.getElementById(id);
 function showScreen(id) { for (const s of document.querySelectorAll('.screen')) s.classList.toggle('show', s.id === id); $('wallet').classList.toggle('hidden', !['menu', 'levels', 'skins'].includes(id)); $('walletN').textContent = Save.data.gems; }
-function setHud(on) { $('hud').classList.toggle('hidden', !on); $('touch').classList.toggle('hidden', !(on && isTouch)); }
+function setHud(on) { $('hud').classList.toggle('hidden', !on); $('touch').classList.toggle('hidden', !(on && isTouch)); if (!on) { Input.joy.x = Input.joy.y = 0; } }
 let toastTimer = null;
 function toast(tag, t1, t2, dur = 3) {
   $('toastTag').textContent = tag; $('toastTag').style.display = tag ? '' : 'none'; $('toastT1').textContent = t1; $('toastT2').textContent = t2;
@@ -1710,7 +1736,7 @@ function startLevel(n) {
   n = clamp(n, 1, TOTAL_LEVELS);
   loadLevel(n); resetRun();
   Save.data.last = n; Save.write();
-  game.state = 'playing'; showScreen(null); setHud(true);
+  game.state = 'playing'; showScreen(null); setHud(true); window.showTouchHint && showTouchHint();
   const s = L.spec;
   $('hudLevel').textContent = (s.boss ? '★ ' : '') + `${s.n} · ${s.boss ? s.name : s.theme.name}`;
   if (s.boss) toast('BOSS LEVEL', s.name, `World ${s.world + 1} finale – good luck!`, 3.5);
@@ -1807,7 +1833,7 @@ function frame(now) {
    ===================================================================== */
 addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
-if (isTouch) $('helpText').textContent = 'Drag on the left to roll · tap JUMP to jump';
+if (isTouch) $('helpText').textContent = 'Hold to roll · drag to steer · swipe up to jump';
 applyQuality();
 loadLevel(clamp(Save.data.last || 1, 1, TOTAL_LEVELS)); resetRun();
 refreshSoundBtns();

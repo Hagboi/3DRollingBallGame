@@ -11,8 +11,8 @@ from `file://`, serve the folder instead (e.g. `python3 -m http.server`).
 
 | | Desktop | Mobile |
 |---|---|---|
-| Roll | WASD / arrow keys (gamepad stick works too) | drag on the left half of the screen |
-| Jump | Space (gamepad A) | JUMP button |
+| Roll | WASD / arrow keys (gamepad stick works too) | hold anywhere to roll, drag left/right to steer, pull down to brake |
+| Jump | Space (gamepad A) | swipe up (or tap with a second finger) |
 | Pause | Esc / P | II button |
 | Restart | R | pause menu |
 
