@@ -17,7 +17,7 @@ from `file://`, serve the folder instead (e.g. `python3 -m http.server`).
 
 Debug keys: `N` next level (Shift+N: +10), `B` previous level, `K` finish the
 current level instantly, `F` FPS/draw-call overlay. URL params: `?level=42`
-starts a level directly, `?unlock` unlocks all levels.
+starts a level directly. All levels and skins are unlocked from the start.
 
 ## What's in it
 
@@ -30,7 +30,7 @@ starts a level directly, `?unlock` unlocks all levels.
   crumbling tiles, spinning discs, narrow beams, pendulums, pistons, sticky mud,
   conveyor belts, wind zones and teleporters.
 - Checkpoints, a per-level timer, 1–3 stars against par times, collectible gems,
-  and 12 ball skins bought with gems. Progress saves to `localStorage`.
+  and 12 ball skins (all unlocked). Progress saves to `localStorage`.
 - Procedural sound effects (Web Audio) and particles; no external assets.
 
 ## Code layout (inside `index.html`)

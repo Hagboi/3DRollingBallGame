@@ -168,7 +168,7 @@ h1.logo{font-size:clamp(48px,11vw,96px);margin:0;font-weight:900;letter-spacing:
 <!-- Skins -->
 <div id="skins" class="screen dim">
   <div class="panel">
-    <div class="lsHead"><div class="lsTitle"><div class="wn">Ball Skins</div><div class="ws">Collect gems in levels to unlock skins</div></div></div>
+    <div class="lsHead"><div class="lsTitle"><div class="wn">Ball Skins</div><div class="ws">All skins unlocked – tap one to equip it</div></div></div>
     <div class="skinGrid" id="skinGrid"></div>
     <div class="row" style="margin-top:14px"><button class="btn ghost small" id="skBack">◀ Back</button></div>
   </div>
@@ -775,7 +775,7 @@ const Save = {
     let d = null;
     try { const raw = localStorage.getItem(SAVE_KEY); if (raw) d = JSON.parse(raw); } catch (e) { d = null; }
     this.data = Object.assign(this.defaults(), d || {});
-    if (params.has('unlock')) this.data.unlocked = TOTAL_LEVELS;
+    this.data.unlocked = TOTAL_LEVELS; // every level is unlocked
   },
   write() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); } catch (e) { /* storage unavailable */ } },
   lv(n) { return this.data.levels[n] || (this.data.levels[n] = { s: 0, t: null, g: 0 }); },
@@ -1095,6 +1095,7 @@ const SKINS = [
   { id: 'crystal', name: 'Crystal', price: 260, mat: { roughness: 0.08, metalness: 0.5, emissive: '#1de9b6', emissiveIntensity: 0.12 }, draw(g, W, H) { g.fillStyle = '#80deea'; g.fillRect(0, 0, W, H); const r = mulberry32(9); for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,255,255,${0.1 + r() * 0.35})`; g.beginPath(); g.moveTo(r() * W, r() * H); g.lineTo(r() * W, r() * H); g.lineTo(r() * W, r() * H); g.fill(); } } },
   { id: 'gold', name: 'Solid Gold', price: 320, mat: { roughness: 0.22, metalness: 1.0 }, draw(g, W, H) { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#fff3b0'); gr.addColorStop(0.5, '#ffc107'); gr.addColorStop(1, '#a86b00'); g.fillStyle = gr; g.fillRect(0, 0, W, H); g.fillStyle = 'rgba(120,70,0,.5)'; for (let i = 0; i < 6; i++) g.fillRect(i * W / 6, 0, 3, H); g.fillRect(0, H / 2 - 2, W, 4); } },
 ];
+Save.data.skins = SKINS.map(s => s.id); // every skin is unlocked
 const skinCache = new Map();
 function skinCanvas(s) { const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; s.draw(cv.getContext('2d'), 512, 256); return cv; }
 function skinMaterial(id) {
@@ -1672,8 +1673,10 @@ function toast(tag, t1, t2, dur = 3) {
 function refreshSoundBtns() { const t = 'Sound: ' + (Save.data.muted ? 'Off' : 'On'); $('btnSound').textContent = t; $('psSound').textContent = t; $('btnQuality').textContent = 'Quality: ' + (Save.data.quality === 'high' ? 'High' : 'Low'); }
 function click(id, fn) { $(id).addEventListener('click', (e) => { Sfx.init(); Sfx.play('click'); fn(e); }); }
 
-click('btnPlay', () => startLevel(Math.min(Save.data.unlocked, TOTAL_LEVELS)));
-click('btnLevels', () => { lsWorld = Math.floor((Math.min(Save.data.unlocked, TOTAL_LEVELS) - 1) / 10); renderLevelSelect(); showScreen('levels'); });
+// first level you haven't completed yet (everything is unlocked, so this is where 'Play' continues)
+function nextUnplayed() { for (let n = 1; n <= TOTAL_LEVELS; n++) { const lv = Save.data.levels[n]; if (!lv || lv.t == null) return n; } return TOTAL_LEVELS; }
+click('btnPlay', () => startLevel(nextUnplayed()));
+click('btnLevels', () => { lsWorld = Math.floor((nextUnplayed() - 1) / 10); renderLevelSelect(); showScreen('levels'); });
 click('btnSkins', () => { renderSkins(); showScreen('skins'); });
 click('btnSound', () => { Sfx.setMuted(!Save.data.muted); refreshSoundBtns(); });
 click('psSound', () => { Sfx.setMuted(!Save.data.muted); refreshSoundBtns(); });
@@ -1702,7 +1705,7 @@ function renderLevelSelect() {
   const g = $('lsGrid'); g.innerHTML = '';
   for (let n = from; n < from + 10; n++) {
     const b = document.createElement('button'), lv = Save.data.levels[n], s = lv?.s || 0, locked = n > Save.data.unlocked;
-    b.className = 'lv' + (n % 10 === 0 ? ' boss' : '') + (locked ? ' locked' : '') + (n === Save.data.unlocked ? ' cur' : '');
+    b.className = 'lv' + (n % 10 === 0 ? ' boss' : '') + (locked ? ' locked' : '') + (n === nextUnplayed() ? ' cur' : '');
     b.innerHTML = locked ? `<span>🔒</span><span class="st" style="opacity:.7">${n}</span>` : `<span>${n}</span><span class="st">${'<b>★</b>'.repeat(s)}${'<i>★</i>'.repeat(3 - s)}</span>`;
     if (!locked) b.addEventListener('click', () => { Sfx.init(); Sfx.play('click'); startLevel(n); });
     g.appendChild(b);
